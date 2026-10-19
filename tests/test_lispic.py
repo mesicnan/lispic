@@ -20,14 +20,17 @@ from lispic.feeds import stable_id
 
 @pytest.fixture
 def site(tmp_path):
+    "Copy the example into a temporary directory so builds cannot modify repository fixtures."
     shutil.copytree(Path(__file__).parents[1]/'examples', tmp_path/'site',
         ignore=shutil.ignore_patterns('dist','.cache','.preview','__pycache__'))
     return load_config(tmp_path/'site/site.sexp')
 
 def render(s):
+    "Render one parsed element without catalog or post dependencies."
     return render_node(parse(s)[0], {}, {}, DEFAULTS)
 
 def test_natural_text_and_escaping():
+    "Preserve inline punctuation and whitespace while escaping HTML and literal delimiters."
     assert render('(p Tohle je (em důležité).)') == '<p>Tohle je <em>důležité</em>.</p>'
     assert render('(p A(strong B)C; "D" & <E>)') == '<p>A<strong>B</strong>C; &quot;D&quot; &amp; &lt;E&gt;</p>'
     assert render(r'(p \(a\) \\ konec)') == '<p>(a) \\ konec</p>'
@@ -36,6 +39,7 @@ def test_natural_text_and_escaping():
     assert render('(pre (code a\n  b\n))') == '<pre><code>a\n  b\n</code></pre>'
 
 def test_data_and_errors():
+    "Accept literal data and attach source coordinates to rejected syntax."
     assert parse_data('{:a [1 -2 3.5 true false :gallery {:x "č"}]}')['a'] == [1,-2,3.5,True,False,':gallery',{'x':'č'}]
     for text in ['(p x', '(p \\x)', '(p {:x 1 :x 2})', '(p {:x (__import__ "os")})']:
         with pytest.raises(ContentError, match=r'fixture:1:\d+:'):
@@ -43,6 +47,7 @@ def test_data_and_errors():
     assert parse('(p a)\n(p b)', 'x')[1].pos.line == 2
 
 def test_order_drafts_dates(site):
+    "Exclude drafts, derive missing dates from filenames, and publish future-dated posts."
     data = build(site, True)
     assert [p['attrs']['id'] for p in data['public-posts']] == ['podzim-2026','ranni-mlha']
     assert data['post-map']['ranni-mlha']['published'].isoformat() == '2026-09-28T00:00:00+02:00'
@@ -58,16 +63,19 @@ def test_order_drafts_dates(site):
     (':href "https://example.org"', ':href "javascript:alert(1)"', 'Nepovolená'),
 ])
 def test_validation(site,old,new,error):
+    "Reject unresolved content references, draft links, unknown labels, and unsafe URLs."
     for p in (site['root']/'content/posts').glob('*.sexp'):
         p.write_text(p.read_text().replace(old,new))
     with pytest.raises(ContentError,match=error): load_content(site)
 
 def test_private_album_rejected(site):
+    "Keep blog-only catalog photos out of public albums."
     p=site['root']/'content/albums/podzim.sexp'
     p.write_text(p.read_text().replace('"pole-03"','"sesit"'))
     with pytest.raises(ContentError,match='neveřejnou'): load_content(site)
 
 def test_randomization_stable():
+    "Keep existing paragraph styles stable and honor explicit identities and seed changes."
     a=parse('(p Stejný (em text).)')[0]
     b=parse('(post (p Jiný.) (p Stejný (em text).))')[0].children[-1]
     options=copy.deepcopy(DEFAULTS['randomization'])
@@ -78,6 +86,7 @@ def test_randomization_stable():
     assert paragraph_style(parse('(p {:id "x"} A)')[0],'p',options) == paragraph_style(parse('(p {:id "x"} B)')[0],'p',options)
 
 def test_images_orientation_cache_profiles(tmp_path):
+    "Apply orientation and ICC conversion, strip GPS, reuse cache entries, and avoid upscaling."
     p=tmp_path/'image.jpg'
     im=Image.new('RGB',(100,300),'red')
     exif=Image.Exif(); exif[274]=6; exif[34853]={1:'N',2:(50.,0.,0.)}
@@ -98,6 +107,7 @@ def test_images_orientation_cache_profiles(tmp_path):
     assert process_image(p,options,cache)['key'] != a['key']
 
 def test_excerpts_and_first_photo(site):
+    "Choose manual or automatic excerpts and locate photos in document order."
     data=load_content(site)
     post=data['post-map']['podzim-2026']
     assert 300 <= len(summary(post)) <= 650
@@ -113,12 +123,15 @@ def test_excerpts_and_first_photo(site):
     assert not result.endswith('např.')
 
 class Links(HTMLParser):
-    def __init__(self): super().__init__(); self.urls=[]
+    """Collect generated anchor and image URLs without a browser dependency."""
+    def __init__(self): "Initialize the HTML parser and its collected URL list."; super().__init__(); self.urls=[]
     def handle_starttag(self,tag,attrs):
+        "Collect links and image targets for generated-file existence checks."
         for k,v in attrs:
             if k in ('href','src','data-pswp-src'): self.urls.append(v)
 
 def test_build_feeds_links_cleanup_and_reproducibility(site):
+    "Verify complete outputs, feed XML, link targets, repeatability, cache reuse, and stale-page removal."
     data=build(site)
     root=site['root']; blog=root/'dist/blog'; gallery=root/'dist/gallery'
     assert not (blog/'clanky/nedokoncena-cesta').exists()
@@ -163,10 +176,12 @@ def test_build_feeds_links_cleanup_and_reproducibility(site):
     assert not (blog/'stranky/o-mne').exists()
 
 def test_output_guard(site):
+    "Reject an output destination that would overwrite source content."
     site['blog']['output']='content'
     with pytest.raises(ContentError, match='výstupní'): build(site)
 
 def test_tie_order_and_updated(site):
+    "Use source paths to break publication-date ties independently of updated dates."
     posts=site['root']/'content/posts'
     for name,id in [('2026-01-01-b.sexp','b'),('2026-01-01-a.sexp','a')]:
         (posts/name).write_text(f'(post {{:id "{id}" :title "{id}" :slug "{id}" :updated "2099-01-01"}} (p Text.))')
@@ -175,6 +190,7 @@ def test_tie_order_and_updated(site):
 
 def test_empty_catalog_and_pagination(site):
     # Empty catalogs are legal for a text-only blog.
+    "Build a text-only blog and paginate indices, archives, and label lists."
     for path in (site['root']/'content/albums').glob('*.sexp'): path.unlink()
     for path in (site['root']/'content/posts').glob('*.sexp'): path.unlink()
     (site['root']/'content/photos.sexp').write_text('')
@@ -188,17 +204,20 @@ def test_empty_catalog_and_pagination(site):
 
 @pytest.mark.parametrize('fragment', ['(p (h2 Invalid))','(ul Text)','(p (a {:href "/"} (a {:href "/"} X)))'])
 def test_invalid_html_structure(site,fragment):
+    "Reject source nesting that would produce invalid HTML structures."
     p=site['root']/'content/pages/invalid.sexp'
     p.write_text(f'(page {{:id "invalid" :title "Invalid" :slug "invalid"}} {fragment})')
     with pytest.raises(ContentError):load_content(site)
 
 @pytest.mark.parametrize('key,value', [('per-page',0),('per-page',1.5)])
 def test_invalid_configuration(tmp_path,key,value):
+    "Reject nonpositive and noninteger pagination settings."
     p=tmp_path/'site.sexp'
     p.write_text('{:blog {:' + key + ' ' + str(value) + '}}')
     with pytest.raises(ContentError):load_config(p)
 
 def test_preview_urls_and_randomization_override(site):
+    "Rewrite only matching origins and apply explicit per-post paragraph settings."
     from lispic.render import public_href, body
     site['preview-origins']={'https://blog.example.cz':'http://localhost:8000','https://foto.example.cz':'http://localhost:8001'}
     assert public_href('https://blog.example.cz/clanky/test/',site)=='http://localhost:8000/clanky/test/'
@@ -208,16 +227,19 @@ def test_preview_urls_and_randomization_override(site):
     assert 'varied' in body({'node':node,'attrs':node.attrs},{},site)
 
 def test_no_word_boundary_and_number_tokens():
+    "Handle exponent notation and bound excerpts even when text contains no spaces."
     assert parse_data('[1e3 -1.2e-3]') == [1000,-.0012]
     rec={'attrs':{},'node':parse('(post (p '+('x'*800)+'))')[0]}
     assert len(summary(rec)) == 501
 
 def test_album_cannot_bypass_public_catalog(site):
+    "Reject direct source-file photos in album bodies."
     p=site['root']/'content/albums/podzim.sexp'
     p.write_text('(album {:id "x" :title "X" :slug "x" :photos ["pole-01"]} (photo {:src "local.jpg" :alt "X"}))')
     with pytest.raises(ContentError,match='pouze veřejné katalogové'):load_content(site)
 
 def test_ignored_photo_attributes_are_rejected(site):
+    "Reject catalog-only attributes on embedded photo elements."
     p=site['root']/'content/posts/2026-10-18-podzim.sexp'
     p.write_text(p.read_text().replace(':ref "pole-01"', ':ref "pole-01" :gallery false'))
     with pytest.raises(ContentError,match='Nepovolený atribut'):load_content(site)

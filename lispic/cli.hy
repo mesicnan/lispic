@@ -1,8 +1,10 @@
+"Expose build, check, and a two-origin local preview through the Lispic command line."
 (import argparse sys threading functools http.server [ThreadingHTTPServer SimpleHTTPRequestHandler])
 (import lispic.config [load-config])
 (import lispic.build [build])
 
 (defn main []
+  "Run the selected command; return an exit status and cleanly stop preview servers on Ctrl+C."
   (setv parser (argparse.ArgumentParser :description "Lispic — statický fotografický web") )
   (.add-argument parser "command" :choices ["build" "check" "serve"])
   (.add-argument parser "--config" :default "site.sexp")
@@ -13,6 +15,8 @@
     (setv cfg (load-config args.config))
     (when (= args.command "serve")
       (when (= args.port args.gallery-port) (raise (ValueError "Porty obou webů musí být různé")))
+      ;; Record original origins before replacing them, so explicit links in
+      ;; content and navigation can be rewritten alongside generated URLs.
       (setv (get cfg "preview-origins") {(get cfg "blog" "url") f"http://localhost:{args.port}" (get cfg "gallery" "url") f"http://localhost:{args.gallery-port}"})
       (setv (get cfg "blog" "url") f"http://localhost:{args.port}"
             (get cfg "gallery" "url") f"http://localhost:{args.gallery-port}"
@@ -23,6 +27,8 @@
     (when (= args.command "serve")
       (setv servers [])
       (try
+        ;; Both sites need distinct origins even locally; use separate loopback
+        ;; ports and daemon threads, with explicit shutdown in the finally block.
         (for [[site port] [["blog" args.port] ["gallery" args.gallery-port]]]
           (setv directory (str (/ (get cfg "root") (get cfg site "output")))
                 handler (functools.partial SimpleHTTPRequestHandler :directory directory)

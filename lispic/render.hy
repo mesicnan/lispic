@@ -1,27 +1,42 @@
+"Render validated content as escaped HTML for the blog and gallery origins."
 (import html json datetime [datetime] zoneinfo [ZoneInfo])
 (import lispic.model [Text Node plain])
 (import lispic.typography [paragraph-style])
 (import lispic.excerpts [summary])
 
-(defn esc [value] (html.escape (str value) :quote True))
+(defn esc [value]
+  "Escape a value for HTML text or a quoted attribute."
+  (html.escape (str value) :quote True))
 (defn attrs-html [attrs]
+  "Serialize trusted attribute names with escaped, double-quoted values."
   (.join "" (gfor [key value] (.items attrs) f" {key}=\"{(esc value)}\"")))
 (defn public-href [href cfg]
+  "Map links on configured production origins to local origins during preview."
+  ;; Check the origin boundary as well as the prefix, so a similarly named
+  ;; external hostname cannot accidentally be rewritten into the local preview.
   (for [[production local] (.items (.get cfg "preview-origins" {}))]
     (when (or (= href production) (.startswith href (+ production "/")) (.startswith href (+ production "?")) (.startswith href (+ production "#")))
       (return (+ local (cut href (len production) None)))))
   href)
 
-(defn post-url [record cfg] (+ (get cfg "blog" "url") "/clanky/" (get record "attrs" "slug") "/"))
-(defn photo-url [id cfg] (+ (get cfg "gallery" "url") "/foto/" id "/"))
+(defn post-url [record cfg]
+  "Return the absolute blog URL for a validated post slug."
+  (+ (get cfg "blog" "url") "/clanky/" (get record "attrs" "slug") "/"))
+(defn photo-url [id cfg]
+  "Return the stable absolute detail URL for a public catalog photo ID."
+  (+ (get cfg "gallery" "url") "/foto/" id "/"))
 (defn media-url [image variant cfg]
+  "Return an absolute variant URL on the origin that publishes this image."
   (+ (get cfg (get image "site") "url") "/media/" (get image "key") "/" (get variant "file")))
 
 (defn image-tag [image alt cfg [small False]]
+  "Render responsive picture markup, or a small JPEG-only image for a feed."
   (setv jpg (lfor v (get image "variants") :if (= (get v "format") "jpg") v)
         webp (lfor v (get image "variants") :if (= (get v "format") "webp") v)
         default (get jpg (min 1 (- (len jpg) 1))))
-  (defn srcset [variants] (.join ", " (gfor v variants f"{(media-url image v cfg)} {(get v "width")}w")))
+  (defn srcset [variants]
+    "Serialize variant URLs using their actual pixel widths as srcset descriptors."
+    (.join ", " (gfor v variants f"{(media-url image v cfg)} {(get v "width")}w")))
   (setv sizes "(max-width: 700px) 100vw, 70vw")
   (setv img (+ "<img" (attrs-html {"src" (media-url image (if small (get jpg 0) default) cfg)
        "alt" alt "width" (get default "width") "height" (get default "height")
@@ -31,6 +46,7 @@
     (+ "<picture><source type=\"image/webp\"" (attrs-html {"srcset" (srcset webp) "sizes" sizes}) ">" img "</picture>")))
 
 (defn photo-data [node record data]
+  "Resolve an embedded photo to its processed image, effective alt text, and catalog record."
   (if (.get node.attrs "ref")
     (do
       (setv rec (get data "photos" (get node.attrs "ref")))
@@ -38,6 +54,7 @@
     [(get data "inline" #((str (get record "path")) (get node.attrs "src"))) (get node.attrs "alt") None]))
 
 (defn photo-anchor [image alt cfg [detail None]]
+  "Wrap a responsive image in a no-JavaScript link enhanced by PhotoSwipe dimensions."
   (setv largest (get (lfor v (get image "variants") :if (= (get v "format") "jpg") v) -1)
         source (media-url image largest cfg)
         attrs {"class" "zoom" "href" (or detail source) "data-pswp-src" source
@@ -45,9 +62,12 @@
   (+ "<a" (attrs-html attrs) ">" (image-tag image alt cfg) "</a>"))
 
 (defn grid [ids data cfg [reorder False] [days False]]
+  "Render tiles in original list order and attach dimensions and local-layout settings."
   (setv options (dict (get cfg "layout")))
   (setv (get options "reorder") reorder)
   (setv out (+ "<div class=\"photo-grid lightbox\"" (attrs-html {"data-layout" (json.dumps options)}) ">"))
+  ;; Tile order remains the source order. JavaScript changes coordinates only,
+  ;; allowing PhotoSwipe and keyboard navigation to retain the original sequence.
   (for [id ids]
     (setv rec (get data "photos" id) image (get rec "image") a (get rec "attrs")
           day (if (and days (.get rec "added")) (.isoformat (.date (.astimezone (get rec "added") (ZoneInfo (get cfg "timezone"))))) "")
@@ -57,6 +77,7 @@
   (+ out "</div>"))
 
 (defn render-node [node record data cfg [randomize False]]
+  "Render a validated text or element node, resolving links and embedded photographs."
   (when (isinstance node Text) (return (esc node.value)))
   (setv name node.name)
   (when (= name "gallery") (return (grid (get node.attrs "photos") data cfg)))
@@ -80,19 +101,23 @@
      "</" name ">"))
 
 (defn body [record data cfg]
+  "Render a document body with the permitted per-post paragraph-style override."
   (setv node (get record "node") randomize (and (= node.name "post") (.get node.attrs "randomization" (get cfg "randomization" "enabled"))))
   (.join "" (gfor c node.children (render-node c record data cfg randomize))))
 
 (defn labels [record cfg]
+  "Render the post label IDs as links using names from the site registry."
   (.join " " (gfor label (.get (get record "attrs") "labels" [])
     (+ "<a class=\"label\" href=\"" (esc (+ (get cfg "blog" "url") "/labels/" label "/")) "\">" (esc (get cfg "labels" label)) "</a>"))))
 
 (defn listing [records cfg]
+  "Render ordered post cards with publication dates, excerpts, and label links."
   (.join "" (gfor r records
     (+ "<article class=\"post-card\"><time>" (esc (.strftime (get r "published") "%d. %m. %Y")) "</time><h2><a href=\"" (esc (post-url r cfg)) "\">"
        (esc (get r "attrs" "title")) "</a></h2><p>" (esc (summary r)) "</p>" (labels r cfg) "</article>"))))
 
 (defn document [title content site cfg data [canonical "/"]]
+  "Wrap page content in a complete HTML document with navigation, assets, and a blog sidebar."
   (setv blog (get cfg "blog" "url") gallery (get cfg "gallery" "url")
         nav (+ "<a href=\"" (esc blog) "/\">Zápisník</a><a href=\"" (esc gallery) "/\">Fotografie</a><a href=\"" (esc gallery) "/alba/\">Alba</a>"))
   (for [page (get data "pages")]

@@ -1,3 +1,4 @@
+"Load data-only site settings, merge defaults, and validate values before building."
 (import copy pathlib [Path] zoneinfo [ZoneInfo] urllib.parse [urlsplit])
 (import lispic.parser [parse-data])
 (import lispic.model [ContentError])
@@ -15,6 +16,7 @@
    "appearance" {"background" "#141618" "foreground" "#e4e1db" "accent" "#d2b98a" "text-width" "44rem" "navigation" []}})
 
 (defn merge [base override]
+  "Return a deep copy of base with known overrides; empty dictionaries are open registries."
   (when (not (isinstance override dict)) (raise (ContentError "Očekáván konfigurační slovník")))
   (setv result (copy.deepcopy base))
   (for [[key value] (.items override)]
@@ -23,12 +25,15 @@
       (raise (ContentError f":{key} musí být slovník")))
     (when (and (isinstance (get base key) list) (not (isinstance value list)))
       (raise (ContentError f":{key} musí být seznam")))
+    ;; Nonempty defaults describe a fixed schema; an empty registry (labels)
+    ;; accepts user-defined keys instead of treating them as unknown settings.
     (setv (get result key)
       (if (and (isinstance value dict) (isinstance (get base key) dict) (get base key))
         (merge (get base key) value) value)))
   result)
 
 (defn load-config [path]
+  "Load and validate site.sexp, normalize origins, and attach its parent directory as root."
   (setv path (.resolve (Path path)) raw (parse-data (.read-text path :encoding "utf-8") path))
   (when (not (isinstance raw dict)) (raise (ContentError "Konfigurace musí být slovník")))
   (setv cfg (merge DEFAULTS raw))
@@ -56,7 +61,9 @@
 (defn validate-settings [cfg]
   "Validate types and ranges before rendering CSS or touching output paths."
   (import re)
-  (defn error [message] (raise (ContentError (+ "Konfigurace: " message))))
+  (defn error [message]
+    "Raise a configuration error with the shared diagnostic prefix."
+    (raise (ContentError (+ "Konfigurace: " message))))
   (for [key ["language" "timezone" "author"]]
     (when (or (not (isinstance (get cfg key) str)) (not (get cfg key))) (error f":{key} musí být neprázdný řetězec")))
   (for [section ["blog" "gallery"] key ["title" "url" "output"]]

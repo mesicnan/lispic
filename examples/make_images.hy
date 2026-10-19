@@ -5,6 +5,8 @@
                ["pole-02" 1500 1000 #(74 108 110)] ["pole-03" 1200 800 #(76 92 61)]
                ["pole-04" 900 900 #(118 103 91)] ["panorama-01" 2400 600 #(122 92 77)]
                ["sesit" 900 700 #(83 76 66)] ["poznamky" 900 600 #(102 89 74)]])
+;; Use labelled geometric layers rather than photographic assets so fixtures
+;; are reproducible and clearly distinguishable from real portfolio content.
 (for [[name w h color] fixtures]
   (setv im (Image.new "RGB" #(w h) color) draw (ImageDraw.Draw im))
   (for [i (range 1 7)]

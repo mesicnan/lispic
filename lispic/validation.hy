@@ -1,3 +1,4 @@
+"Validate document structure and resolve metadata, source paths, and content references."
 (import re pathlib [Path] datetime [datetime time] zoneinfo [ZoneInfo] urllib.parse [urlsplit])
 (import lispic.parser [parse-file])
 (import lispic.model [Node Text ContentError fail plain])
@@ -11,14 +12,17 @@
             "gallery" #{"photos"} "a" #{"href" "post" "title"} "p" #{"id"}})
 
 (defn identifier [value pos]
+  "Reject IDs or slugs outside the lowercase ASCII identifier syntax."
   (when (or (not (isinstance value str)) (not (re.fullmatch "[a-z0-9]+(?:[-_][a-z0-9]+)*" value)))
     (fail pos f"Neplatný identifikátor nebo slug: {(repr value)}")))
 
 (defn required [node keys]
+  "Require each named attribute to have a nonempty value on node."
   (for [key keys]
     (when (not (.get node.attrs key)) (fail node.pos f"Chybí :{key}"))))
 
 (defn date-value [value pos cfg]
+  "Parse an ISO date/time and attach the configured time zone when no offset is present."
   (try
     (setv dt (datetime.fromisoformat value))
     (when (is dt.tzinfo None) (setv dt (.replace dt :tzinfo (ZoneInfo (get cfg "timezone")))))
@@ -26,6 +30,7 @@
     (except [e [ValueError TypeError]] (fail pos f"Neplatné datum {(repr value)}"))))
 
 (defn safe-file [base relative pos]
+  "Resolve an existing file under base, rejecting directory traversal and escaping symlinks."
   (when (not (isinstance relative str)) (fail pos "Cesta musí být řetězec"))
   (setv base (.resolve (Path base)) path (.resolve (/ base relative)))
   (when (not (.is-relative-to path base)) (fail pos "Cesta nesmí opustit zdrojový adresář"))
@@ -33,11 +38,13 @@
   path)
 
 (defn walk [node]
+  "Yield element nodes depth first in document order, including the supplied root."
   (yield node)
   (for [child node.children]
     (when (isinstance child Node) (yield :from (walk child)))))
 
 (defn check-tree [node root]
+  "Validate element nesting, allowed attributes, value types, and link schemes."
   (for [n (walk node)]
     (when (and (is-not n node) (not (in n.name TAGS))) (fail n.pos f"Neznámý prvek {n.name}"))
     (when (in n.name ["p" "h1" "h2" "h3" "h4" "h5" "h6" "em" "strong" "a" "code" "photo"])
@@ -77,6 +84,7 @@
     (when (and (= n.name "br") (or n.children n.attrs)) (fail n.pos "br nesmí mít obsah"))))
 
 (defn load-content [cfg]
+  "Load every document and catalog record, resolve references, and sort posts by metadata."
   (setv root (get cfg "root") sources (get cfg "sources") result {"posts" [] "pages" [] "albums" [] "photos" {} "post-map" {}})
   (for [[group kind] [["posts" "post"] ["pages" "page"] ["albums" "album"]]]
     (when (not (.is-dir (/ root (get sources group))))
@@ -106,6 +114,8 @@
           (when (not (in label (get cfg "labels"))) (fail node.pos f"Neznámý label {label}")))
         (setv (get result "post-map" (get attrs "id")) record))
       (.append (get result group) record)))
+  ;; Build the complete catalog before resolving references so file order
+  ;; never determines whether a post or album can find a photograph.
   (for [node (parse-file (/ root (get sources "catalog")))]
     (when (!= node.name "photo") (fail node.pos "V katalogu je povoleno pouze photo"))
     (check-tree node "photo")
@@ -122,6 +132,8 @@
     (when (.get a "taken") (date-value (get a "taken") node.pos cfg))
     (setv (get result "photos" id) rec))
   
+  ;; Resolve links after all post IDs are known, including drafts. A draft
+  ;; remains a valid source document but cannot be a public link target.
   (for [group ["posts" "pages" "albums"] record (get result group)]
     (setv node (get record "node"))
     (when (= group "albums") (required node ["photos"]))
@@ -141,5 +153,7 @@
       (when (and (= n.name "photo") (.get n.attrs "src"))
         (when (= group "albums") (fail n.pos "Album může obsahovat pouze veřejné katalogové fotografie přes :ref"))
         (safe-file (. (get record "path") parent) (get n.attrs "src") n.pos))))
+  ;; Negate the timestamp for newest-first sorting; keep the path ascending
+  ;; as a deterministic tie-breaker, independently of filesystem timestamps.
   (setv (get result "posts") (sorted (get result "posts") :key (fn [r] #((- (.timestamp (get r "published"))) (str (get r "path"))))))
   result)

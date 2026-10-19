@@ -1,10 +1,10 @@
 # Lispic
 
-Osobní generátor dvou statických fotografických webů. Jádro je napsané v **Hy 1.3.1**, obrázky zpracovává Pillow. Tmavý blog má úzký textový sloupec, galerie široké řádky bez ořezu. Výsledné adresáře potřebují pouze statický HTTP hosting.
+A personal generator for two static photography websites. The core is written in **Hy 1.3.1**, with Pillow handling image processing. The dark blog uses a narrow text column, while the gallery presents wide rows without cropping. The generated directories require only static HTTP hosting.
 
-## Rychlý začátek
+## Quick start
 
-Vyžaduje Python 3.11 nebo novější s `venv` a systémovými daty časových pásem. Ověřeno na Pythonu 3.13.16, Hy 1.3.1 a Pillow 12.3.0.
+Requires Python 3.11 or later with `venv` and system time zone data. Verified with Python 3.13.16, Hy 1.3.1, and Pillow 12.3.0.
 
 ```sh
 python3 -m venv .venv
@@ -14,130 +14,132 @@ python3 -m venv .venv
 .venv/bin/lispic serve --config examples/site.sexp
 ```
 
-Otevřete **http://localhost:8000** (blog) a **http://localhost:8001** (galerie). Aktivace prostředí není nutná. Při instalaci přes `pipx install .` lze příkaz `lispic` používat odkudkoli; cestu k `site.sexp` určíte `--config`. Samostatně instalované `hy` nemusí mít závislosti projektu, proto pro vývoj použijte `.venv/bin/hy`.
+Open **http://localhost:8000** for the blog and **http://localhost:8001** for the gallery. Environment activation is optional. Installing with `pipx install .` makes `lispic` available from any directory; use `--config` to select your `site.sexp`. A separately installed `hy` may lack the project's dependencies, so use `.venv/bin/hy` for development.
 
-- `check`: načte i koncepty, ověří syntaxi, metadata, odkazy a čitelnost obrázků. Nevytváří cache ani web.
-- `build`: vytvoří oba weby, v ukázce `examples/dist/blog` a `examples/dist/gallery`.
-- `serve`: sestaví oddělený místní výstup `examples/.preview/{blog,gallery}`, nahradí obě základní URL localhostem a spustí dva servery vázané na loopback. Produkční `dist` nemění. Ukončení Ctrl+C. Po úpravě obsahu ho spusťte znovu.
-- Porty lze změnit pomocí `--port 8100 --gallery-port 8101`.
+- `check` reads all content, including drafts, and validates syntax, metadata, references, and image files. It does not generate a cache or website.
+- `build` generates both websites: `examples/dist/blog` and `examples/dist/gallery` in the example.
+- `serve` builds separate local output in `examples/.preview/{blog,gallery}`, replaces both base URLs with localhost addresses, and starts two loopback servers. Production `dist` output is preserved. Stop with Ctrl+C and restart after editing content.
+- Change ports with `--port 8100 --gallery-port 8101`.
 
-`serve` přepisuje také explicitní odkazy v obsahu a navigaci, které začínají nakonfigurovanou produkční URL. Ostatní externí odkazy zůstávají externí. Na náhled používejte HTTP, nikoliv `file://`.
+`serve` also rewrites explicit content and navigation links that start with a configured production origin. Other external links remain external. Preview the site over HTTP rather than opening files through `file://`.
 
-## Obsah
+## Content
 
-Všechny cesty v konfiguraci jsou relativní k jejímu souboru. Ukázkový web obsahuje dva články, koncept, stránku O mně, sedm katalogových fotografií, dvě alba a samostatný obrázek článku. Obrázky jsou označené technické ilustrace různých rozměrů, nikoliv fotografie. Jsou součástí checkoutu; znovu je vytvoří `.venv/bin/hy examples/make_images.hy`.
+All configuration paths are relative to the configuration file. The example contains two published posts, one draft, an About page, seven catalog photos, two albums, and a separate post-only image. The images are labelled technical illustrations with different aspect ratios. They are included in the checkout; regenerate them with `.venv/bin/hy examples/make_images.hy`.
 
-### Článek
+The generated website and example content use Czech. Documentation and source comments use English.
 
-V adresáři `sources.posts` založte např. `2026-10-18-podzim.sexp`:
+### Posts
+
+Create a file such as `2026-10-18-podzim.sexp` in `sources.posts`:
 
 ```lisp
-(post {:id "podzim-2026" :title "Podzim za městem" :slug "podzim-za-mestem"
+(post {:id "podzim-2026" :title "Autumn outside the city" :slug "podzim-za-mestem"
        :published "2026-10-18T18:30:00+02:00" :labels ["krajina"]}
-  (p Vyrazil jsem ráno, ještě před deštěm.)
-  (p Tentokrát mě zajímaly (em okraje) věcí.)
-  (photo {:ref "pole-01"} Popisek pro tento článek.)
+  (p I left in the morning, just before the rain.)
+  (p This time, I was interested in the (em edges) of things.)
+  (photo {:ref "pole-01"} A caption for this post.)
   (gallery {:photos ["pole-01" "pole-02"]}))
 ```
 
-ID a slug jsou malá ASCII písmena, číslice, spojovníky nebo podtržítka (bez úvodní či koncové interpunkce). `:id` je stabilní, `:slug` určuje `/clanky/{slug}/`. `:title` se zobrazí jako hlavní nadpis. Přejmenování zdrojového souboru URL nemění.
+IDs and slugs use lowercase ASCII letters, digits, hyphens, or underscores, without leading or trailing punctuation. `:id` is stable; `:slug` determines `/clanky/{slug}/`. The title becomes the main heading. Renaming a source file does not change its URL.
 
-`:published` je ISO datum/čas. Bez něj je nutné datum `YYYY-MM-DD` na začátku názvu; použije se místní půlnoc. Datum bez posunu používá nastavené časové pásmo. Nejnovější články jsou první, shody rozhoduje vzestupná cesta zdrojového souboru. `:updated` ovlivňuje Atom, nikoli řazení. **Budoucí data se publikují.** `:draft true` článek vyřadí z výstupu. Odkaz z veřejného obsahu na koncept je chyba. `check` kontroluje i samotné koncepty.
+`:published` is an ISO date/time. When omitted, the filename must start with `YYYY-MM-DD`; local midnight is used. Dates without a UTC offset use the configured time zone. Posts are sorted newest first, with ascending source-file paths breaking ties. `:updated` affects Atom metadata but not ordering. **Future-dated posts are published normally.** `:draft true` excludes a post from output. A link from public content to a draft is an error. `check` validates drafts as well.
 
-Volitelné `:summary` je ruční textový perex, `:randomization false` vypne odchylky odstavců. `:labels` odkazuje na registry v konfiguraci. `page` má `:id`, `:title`, `:slug`, tělo jako článek a URL `/stranky/{slug}/`; nevstupuje do chronologie ani feedů. Stránky se automaticky přidají do navigace.
+Optional `:summary` provides a manual plain-text excerpt. `:randomization false` disables paragraph variations for that post. `:labels` refers to the registry in the configuration. A `page` has `:id`, `:title`, `:slug`, a body like a post, and a `/stranky/{slug}/` URL. Pages are excluded from chronological lists and feeds and are automatically added to navigation.
 
-### Zápis textu
+### Text syntax
 
-- `(název {atributy} obsah)`; slovník je volitelný, ale musí být na začátku.
-- Atributy jsou čistá data: `:klíč`, řetězce s JSON escapováním, čísla, `true`, `false`, seznamy, vnořené slovníky, keyword hodnoty jako `:gallery`. Žádný `eval` ani Hy reader se na obsah nepoužívá.
-- V těle je text výchozí; uvozovky a středníky jsou obyčejné znaky. `\(`, `\)` a `\\` označují doslovné závorky a lomítko. Jiný escape v těle je chyba.
-- Mezery a nové řádky se znormalizují. `(p Tohle je (em důležité).)` vytvoří přesně `<p>Tohle je <em>důležité</em>.</p>`.
-- `pre` zachová whitespace včetně vnořeného `code`. Jeden oddělovač za názvem nebo atributy je syntaktický; další whitespace už tvoří obsah. Závorky kódu je nutné escapovat.
-- Podporované prvky: `p`, `h1`–`h6`, `em`, `strong`, `a`, `ul`, `ol`, `li`, `blockquote`, `pre`, `code`, `br`, `photo`, `gallery`.
-- `(a {:post "podzim-2026"} Související článek)` vyhledá článek podle ID. `(a {:href "https://example.org" :title "Volitelné"} Externí odkaz)` je běžný odkaz. Nepovolují se skriptová URL.
-- Text i HTML atributy se escapují; surové HTML není podporováno.
-- Parser ukládá pozice uzlů, chyby obsahu uvádějí soubor, řádek a sloupec. U metadat jde o pozici začátku prvku.
+- Elements use `(name {attributes} content)`. The attribute dictionary is optional but must precede the content.
+- Attributes are data: `:keyword` keys, strings with JSON escaping, numbers, `true`, `false`, lists, nested dictionaries, and keyword values such as `:gallery`. Content is never passed to `eval` or the Hy reader.
+- Plain text is the default inside an element. Quotes and semicolons are ordinary text characters. Write literal parentheses and backslashes as `\(`, `\)`, and `\\`. Other body escapes are errors.
+- Whitespace and line breaks are normalized. `(p This is (em important).)` produces exactly `<p>This is <em>important</em>.</p>`.
+- `pre` preserves whitespace, including inside nested `code`. One separator after the element name or attributes is structural; subsequent whitespace belongs to the content. Parentheses in code must still be escaped.
+- Supported elements: `p`, `h1`–`h6`, `em`, `strong`, `a`, `ul`, `ol`, `li`, `blockquote`, `pre`, `code`, `br`, `photo`, and `gallery`.
+- `(a {:post "podzim-2026"} Related post)` resolves a post by ID. `(a {:href "https://example.org" :title "Optional title"} External link)` creates a regular link. Script URLs are rejected.
+- Text and HTML attribute values are escaped. Raw HTML is not supported.
+- Parsed nodes retain source positions. Content errors report a filename, line, and column; metadata errors point to the start of the element.
 
-### Fotografie
+### Photos
 
-Originál vložte do `sources.originals` a přidejte záznam do `sources.catalog`:
+Place an original in `sources.originals` and add a record to `sources.catalog`:
 
 ```lisp
-(photo {:id "pole-01" :src "pole-01.jpg" :alt "Pole pod zataženou oblohou"
-        :caption "Pole po sklizni" :gallery true
+(photo {:id "pole-01" :src "pole-01.jpg" :alt "A field under an overcast sky"
+        :caption "After the harvest" :gallery true
         :added "2026-10-18T18:00:00+02:00" :taken "2026-10-12"})
 ```
 
-`:added` musí být u veřejné fotografie vyplněno a nemění se automaticky. Přehled řadí podle tohoto data sestupně, shody podle ID vzestupně. `:taken` je nezávislé volitelné datum pořízení. Detail `/foto/{id}/` nezávisí na albu.
+`:added` is required for public gallery photos and is never changed automatically. The gallery sorts by this date descending, with IDs ascending to break ties. `:taken` is a separate optional capture date. The detail URL `/foto/{id}/` is independent of album membership.
 
-**`:gallery false` neznamená soukromí:** fotografii lze publikovat v článku přes `:ref`. Nedostane galerijní detail a nesmí do alba. Varianty se publikují s blogem, pouze pokud ji veřejný obsah používá. U `:gallery true` jsou varianty na galerijní subdoméně; blog je načítá odtamtud.
+**`:gallery false` does not make a photo private:** posts can publish it through `:ref`. It has no gallery detail page and cannot belong to an album. Its variants are published with the blog only when public content uses it. Photos with `:gallery true` have variants on the gallery origin, which the blog references directly.
 
-Vložení přes `(photo {:ref "pole-01" :alt "Volitelné přepsání"} Lokální popisek.)` přebírá katalogový alt a popisek, není-li přepsán. Veřejná fotografie má vedle lightboxu samostatný odkaz na detail. Galerie v článku používá `(gallery {:photos ["pole-01" "pole-02"]})`.
+`(photo {:ref "pole-01" :alt "Optional override"} Local caption.)` inherits the catalog alt text and caption unless overridden. A gallery photo has a separate detail-page link alongside its lightbox link. Inline galleries use `(gallery {:photos ["pole-01" "pole-02"]})`.
 
-Fotografie jen pro jeden článek může být také `(photo {:src "images/poznamky.jpg" :alt "Popis"} Popisek.)`; cesta se vyhodnocuje vůči článku. Cesty nesmí opustit odpovídající zdrojový adresář, včetně symlinků. Originály se nekopírují do výstupu.
+A post-only photo can also use `(photo {:src "images/poznamky.jpg" :alt "Description"} Caption.)`; the path is relative to the post's source file. Paths, including symlink targets, must stay within the applicable source directory. Originals are not copied into the output.
 
-### Alba
+### Albums
 
-Do `sources.albums` vložte:
+Add a file in `sources.albums`:
 
 ```lisp
-(album {:id "podzim" :title "Podzim" :slug "podzim"
+(album {:id "podzim" :title "Autumn" :slug "podzim"
         :photos ["pole-03" "pole-01" "pole-02"] :reorder false}
-  (p Ručně vybraný soubor fotografií.))
+  (p A manually selected collection.))
 ```
 
-Pořadí je dané seznamem, fotografie lze sdílet mezi alby. Všechny musí mít `:gallery true`. Vysoký člen právě skládaného dvojřádku se může zobrazit jako první vlevo; zbytek má zachované vzájemné pořadí. `:reorder true` dovoluje širší místní hledání. Lightbox i DOM vždy zachovávají původní pořadí seznamu.
+The list defines the order, and photos can belong to multiple albums. Every member must have `:gallery true`. A tall member of the current two-row group may appear first on the left; all other photos retain their relative order. `:reorder true` permits a wider local search. The DOM and lightbox always retain the original list order.
 
-## Obrázky a cache
+## Images and cache
 
-Pillow nejprve aplikuje EXIF orientaci, potom převádí vložený ICC profil do sRGB. Neplatný/nepodporovaný profil je chyba s názvem souboru. Bez profilu se předpokládá sRGB; neprofilované CMYK se převede standardním převodem Pillow do RGB (pro přesné barvy raději exportujte do sRGB). Průhlednost se skládá na bílý podklad. Veřejné varianty neobsahují EXIF, GPS ani původní ICC metadata; data jsou už v sRGB.
+Pillow applies EXIF orientation first, then converts an embedded ICC profile to sRGB. An invalid or unsupported profile produces an error naming the file. Images without profiles are assumed to use sRGB; unprofiled CMYK is converted with Pillow's standard RGB conversion. Export to sRGB beforehand when color accuracy matters. Transparency is composited over white. Public variants contain no EXIF, GPS, or original ICC metadata; pixel data is already in sRGB.
 
-Delší strana výchozích variant: 480, 960, 1600, 2400 px; bez zvětšování, shodné skutečné velikosti se neduplikují. JPEG 88 a WebP 85. HTML má `picture`, `srcset`, `sizes`, rozměry a lazy loading. Galerie upraví `sizes` podle skutečné šířky dlaždice. Pro velké zobrazení se používá největší vytvořená varianta.
+Default long-edge lengths are 480, 960, 1600, and 2400 px. Images are never enlarged, and duplicate actual sizes are generated only once. JPEG quality is 88 and WebP quality is 85. HTML includes `picture`, `srcset`, `sizes`, dimensions, and lazy loading. The gallery updates `sizes` to match each tile's actual width. The largest generated variant is used for enlarged viewing.
 
-Klíč cache obsahuje SHA-256 originálu, parametry převodu, verzi pipeline a Pillow. Editace textu obrázky znovu nepřevádí. Cache je možné smazat, není součástí nasazení. Stará cache se automaticky neprořezává. RAW ani animace nejsou cílovým formátem první verze; používejte hotové JPEG/PNG/WebP/TIFF exporty.
+The cache key includes the original file's SHA-256 digest, conversion settings, pipeline version, and Pillow version. Text edits do not reconvert unchanged images. The cache can be deleted and is not deployed. Old cache entries are not pruned automatically. RAW development and animation are outside the first version's scope; use finished JPEG, PNG, WebP, or TIFF exports.
 
-## Rozložení a odstavce
+## Layout and paragraphs
 
-`static/layout.js` je čistá funkce bez DOM. Počítá justified řádky a dvojřádky s jedním vysokým panoramatem. Poměry stran zachovává, úplné řádky vyplňují šířku, poslední může zůstat kratší. Řešení dvojřádku zohledňuje mezeru, poměry stran a cílovou výšku; při nevhodném výsledku se použije běžný řádek. Mobil pod prahem `tall-min-width` používá běžné řádky. `ResizeObserver` přepočítává geometrii bez čekání na snímky.
+`lispic/static/layout.js` is a pure function with no DOM dependencies. It computes justified rows and two-row groups with one tall panorama. Aspect ratios are preserved, complete rows fill the available width, and the last row may remain shorter. The two-row solution accounts for gaps, aspect ratios, and the target height; unsuitable candidates fall back to ordinary rows. Containers narrower than `tall-min-width` use ordinary rows. `ResizeObserver` triggers recalculation without waiting for images to load.
 
-Bez povoleného širšího hledání se vysoký snímek hledá mezi prvními čtyřmi členy místní skupiny; při povolení do `lookahead + 1`. Zkouší se skupiny do 12 snímků a oba pravé řádky se drží přibližně mezi 0,5–1,8 cílové výšky. Tyto heuristické meze lze upravit pomocí `local-lookahead`, `group-limit`, `min-height-factor`, `max-height-factor` a `max-score`. V celkovém přehledu se snímek nesmí přesunout před fotografii z jiného dne (den v nastaveném časovém pásmu). Přeskupení nepřekračuje hranici stránkování.
+Without wider searching enabled, the tall photo is selected from the first four members of the local group; wider searching examines up to `lookahead + 1`. Groups of up to 12 photos are considered, with both right-hand rows kept roughly between 0.5 and 1.8 times the target height. Configure these heuristic limits through `local-lookahead`, `group-limit`, `min-height-factor`, `max-height-factor`, and `max-score`. In the all-photos overview, a photo cannot move ahead of a photo from another added day, interpreted in the configured time zone. Reordering never crosses pagination boundaries.
 
-Randomizace se vypočítá pomocí SHA-256 ze seedu webu, ID článku, normalizované struktury odstavce (nebo jeho `:id`) a názvu parametru. Přidání jiného odstavce nemá vliv. Identické odstavce bez ID mají stejné odchylky; explicitní ID dovolují jejich odlišení. Změna textu změní odchylky, při explicitním ID nikoli. Font vychází z `rem`, takže se při vnoření nenásobí. Mobil má samostatné menší okraje. Feedy, popisky a navigace efekt nemají.
+Paragraph variations use SHA-256 over the site seed, post ID, normalized paragraph structure (or its explicit `:id`), and parameter name. Adding an unrelated paragraph leaves existing variations unchanged. Identical paragraphs without IDs receive identical variations; explicit IDs distinguish them. Text edits change the variations unless an explicit ID is used. Font size is based on `rem`, so nesting does not multiply variations. Mobile margins have a separate, smaller range. Feeds, captions, and navigation have no paragraph variations.
 
-## Feedy a archivy
+## Feeds and archives
 
-Blog publikuje `/atom.xml`, `/rss.xml`, `/archiv/`, stránky `/labels/{id}/` a stránkované seznamy. Galerie vlastní feed nemá. Každá položka obsahuje perex, první fotografii (i první člen vložené galerie) a pokračovací odkaz. Bez ručního perexu se vybírají přímé běžné odstavce článku, ne citace, kód, nadpisy nebo popisky. Cíl je 500 znaků, hranice odstavce/věty mezi 300–650; jinak hranice slova a výpustka. Základní české zkratky a čísla omezují chybné dělení vět; nejde o plný jazykový analyzátor.
+The blog publishes `/atom.xml`, `/rss.xml`, `/archiv/`, `/labels/{id}/` pages, and paginated post lists. The gallery has no feed. Each entry contains an excerpt, the first photo (including the first member of an inline gallery), and a continuation link. Without a manual summary, excerpts use ordinary paragraphs directly inside the post, excluding quotations, code, headings, and captions. The target is 500 characters, preferring paragraph or sentence boundaries between 300 and 650 characters; otherwise the text is cut at a word boundary and given an ellipsis. Common Czech abbreviations and numbers reduce incorrect sentence splits; this is a lightweight heuristic.
 
-UUIDv5 položky vychází z `blog.identity` a ID článku. Změna titulku, slugu, CSS nebo seedu ID ani datum aktualizace nemění. Neměňte `blog.identity` po prvním zveřejnění. RSS používá datum vydání; Atom vydání a aktualizaci. Prázdný feed používá jako své datum epochu 1970-01-01, nikoli čas sestavení.
+Each entry's UUIDv5 derives from `blog.identity` and the post ID. Changing the title, slug, CSS, or seed changes neither the entry ID nor its update timestamp. Keep `blog.identity` unchanged after publication. RSS uses publication dates; Atom includes both publication and update dates. An empty feed uses the Unix epoch, 1970-01-01, rather than the build time.
 
-## Konfigurace a publikování
+## Configuration and publishing
 
-Kompletní příklad: `examples/site.sexp`. Všechny položky a výchozí hodnoty popisuje [docs/configuration.md](docs/configuration.md). Povolené lokální volby jsou `post.randomization` a `album.reorder`. Jinak platí konfigurace webu a vestavěné výchozí hodnoty. Metadata patří do obsahu, ne konfigurace.
+The complete example is `examples/site.sexp`. [docs/configuration.md](docs/configuration.md) describes every setting and default. Allowed per-document overrides are `post.randomization` and `album.reorder`; other values come from site configuration and built-in defaults. Document metadata belongs in content files.
 
-Pro vlastní web zkopírujte ukázkovou strukturu a upravte URL, autora, názvy, obsah a stabilní identitu blogu. Po `build` nahrajte **obsah** `dist/blog` do kořene blogové subdomény a **obsah** `dist/gallery` do kořene fotografické subdomény. Hosting musí obsluhovat adresáře přes `index.html`, poskytovat správný MIME typ pro `.js`, CSS, obrázky a XML. Žádný Python ani databáze nejsou potřeba. Nasazení nástroj neprovádí.
+For your own website, copy the example structure and change the URLs, author, titles, content, and stable blog identity. After `build`, upload the **contents** of `dist/blog` to the blog origin's root and the **contents** of `dist/gallery` to the gallery origin's root. Hosting must serve directories through `index.html` and provide correct MIME types for JavaScript, CSS, images, and XML. Python and a database are not required on the host. The tool does not perform deployment.
 
-Sestavení nejprve připraví oba stromy v dočasných sousedních adresářích. Teprve po úspěšném renderování nahradí staré výstupy, takže nezůstávají osiřelé články ani varianty. Přepisuje pouze prázdné adresáře nebo adresáře označené `.lispic-output`; cíle nesmí překrývat zdroje, cache ani jeden druhý. Dvojí přejmenování není transakce při výpadku disku; nespouštějte současně dvě sestavení stejného webu.
+The build prepares both trees in temporary sibling directories before replacing old output. This removes orphaned pages and variants. Only empty directories or directories marked with `.lispic-output` may be replaced; output directories must not overlap sources, the cache, or each other. Replacing two directories is not a shared transaction during disk failure. Do not run concurrent builds for the same website.
 
-Výsledky provedených kontrol: [docs/verification.md](docs/verification.md).
+Recorded verification results: [docs/verification.md](docs/verification.md).
 
-## Vývoj a testy
+## Development and tests
 
 ```sh
 .venv/bin/python -m pip install -e ".[test]"
 .venv/bin/python -m pytest -q
-# Čistá geometrie, pouze Node.js >=22, bez npm závislostí:
+# Pure geometry: Node.js >=22, no npm dependencies required:
 node --test tests/layout.test.mjs
-# Volitelné testy skutečného prohlížeče:
+# Optional real-browser checks:
 npm install
 npx playwright install chromium
-# V druhém terminálu nechte běžet serve z rychlého začátku:
+# Keep the quick-start preview running in another terminal:
 node tests/browser.mjs
 ```
 
-Testy zahrnují parser, český text a interpunkci, nebezpečné odkazy, metadata, řazení, koncepty, orientaci a ICC, odstranění GPS, cache, odstavce, perexy, identitu a XML feedů, existenci místních odkazů, opakovatelnost a odstranění starých stránek. Geometrické testy kontrolují překryvy, poměry stran, vyplnění řádků, panoramata a zákaz přesunů mezi dny. Browser testy ověřují desktop 1440 px, mobil 390 px, lightbox, přechody mezi weby, feedy a základní navigaci bez JavaScriptu.
+The tests cover parsing, Czech text and punctuation, unsafe links, metadata, ordering, drafts, orientation and ICC conversion, GPS removal, caching, paragraph variations, excerpts, feed identity and XML, local link targets, reproducibility, and obsolete page removal. Geometry tests check overlaps, aspect ratios, full rows, panoramas, and added-day boundaries. Browser tests cover a 1440 px desktop, a 390 px mobile viewport, the lightbox, cross-site navigation, feeds, and basic navigation without JavaScript.
 
-Jádro: `parser.hy`, `model.hy`, `config.hy`, `validation.hy`, `images.hy`, `typography.hy`, `excerpts.hy`, `render.hy`, `feeds.hy`, `build.hy`, `cli.hy`. Jediný Python bootstrap je `__init__.py`; testy jsou v Pythonu a JavaScriptu.
+The core modules are `parser.hy`, `model.hy`, `config.hy`, `validation.hy`, `images.hy`, `typography.hy`, `excerpts.hy`, `render.hy`, `feeds.hy`, `build.hy`, and `cli.hy`. `__init__.py` is the only Python bootstrap; tests use Python and JavaScript. See [docs/development.md](docs/development.md) for the module boundaries and implementation notes.
 
-PhotoSwipe **5.4.4** je přibalen lokálně, pod licencí **MIT**. Viz `lispic/static/PHOTOSWIPE-LICENSE.txt` a [docs/third-party.md](docs/third-party.md). Za běhu web nepoužívá CDN ani externí písma.
+PhotoSwipe **5.4.4** is bundled locally under the **MIT** license. See `lispic/static/PHOTOSWIPE-LICENSE.txt` and [docs/third-party.md](docs/third-party.md). The generated websites use no runtime CDN or external fonts.
 
-První verze nemá sledování změn, administraci, automatické přesměrování starých slugů, RAW pipeline ani vyhledávání. Identifikátory se automaticky nedoplňují a data `:added` musí autor uložit ručně. Chybová hlášení se zastaví u první chyby.
+The first version has no file watcher, administration interface, automatic redirects for old slugs, RAW pipeline, or search. IDs are not generated automatically, and authors must persist `:added` dates themselves. Validation stops at the first error.

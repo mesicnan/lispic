@@ -3,26 +3,36 @@
 (import lispic.model [Node Text Position fail])
 
 (defclass Reader []
+  "A recursive-descent reader with separate element-text and literal-data modes."
   (defn __init__ [self source [file "<text>"]]
+    "Initialize a cursor over source; file is a diagnostic label, not an opened handle."
     (setv self.source source self.file (str file) self.i 0))
   (defn pos [self]
+    "Return the current one-based source position, counting Unicode characters."
     (setv prefix (cut self.source 0 self.i))
     (Position self.file (+ 1 (.count prefix "\n")) (+ 1 (- self.i (+ 1 (.rfind prefix "\n"))))))
   (defn peek [self]
+    "Return the current character without advancing, or an empty string at end of input."
     (if (< self.i (len self.source)) (get self.source self.i) ""))
   (defn ws [self]
+    "Advance past whitespace while reading structural syntax or attribute data."
     (while (and (self.peek) (.isspace (self.peek))) (+= self.i 1)))
-  (defn error [self message] (fail (self.pos) message))
+  (defn error [self message]
+    "Raise a content error at the current cursor position."
+    (fail (self.pos) message))
   (defn expect [self value]
+    "Consume one required delimiter or report its absence at the cursor."
     (when (!= (self.peek) value) (self.error f"Očekáváno {(repr value)}"))
     (+= self.i 1))
   (defn token [self]
+    "Read an unquoted data token up to whitespace or a structural delimiter."
     (setv start self.i)
     (while (and (self.peek) (not (.isspace (self.peek))) (not (in (self.peek) "{}[]()")))
       (+= self.i 1))
     (when (= start self.i) (self.error "Očekávána hodnota"))
     (cut self.source start self.i))
   (defn value [self]
+    "Read one literal data value recursively; reject executable forms and duplicate keys."
     (self.ws)
     (setv c (self.peek))
     (cond
@@ -70,6 +80,7 @@
             (re.fullmatch "[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?" token) (float token)
             True (self.error f"Neplatná datová hodnota {(repr token)}")))))
   (defn element [self [preserve False]]
+    "Read a positioned element tree, inheriting whitespace preservation inside pre."
     (setv pos (self.pos))
     (self.expect "(")
     (setv match (re.match "[a-z][a-z0-9-]*" (cut self.source self.i None)))
@@ -88,8 +99,10 @@
           (when (.isspace (self.peek)) (+= self.i 1)))
       (do (setv self.i after-name)
           (when (.isspace (self.peek)) (+= self.i 1))))
+    ;; Pass preservation into descendants so (pre (code ...)) keeps its spacing.
     (setv preserve (or preserve (= name "pre")) children [] buffer [] start (self.pos))
     (defn flush []
+      "Append buffered text with its starting position; normalize whitespace unless preserving it."
       (when buffer
         (setv value (.join "" buffer))
         (when (not preserve) (setv value (re.sub "\\s+" " " value)))
@@ -108,6 +121,8 @@
         True (do (.append buffer (self.peek)) (+= self.i 1))))
     (flush)
     (self.expect ")")
+    ;; Trim the element boundary only. Internal text around a child must keep
+    ;; its space, while punctuation immediately after a child must stay adjacent.
     (when (and (not preserve) children)
       (when (isinstance (get children 0) Text)
         (setv (. (get children 0) value) (.lstrip (. (get children 0) value))))
@@ -116,6 +131,7 @@
     (Node name attrs children pos)))
 
 (defn parse [source [file "<text>"]]
+  "Parse zero or more root elements from source and retain file in their positions."
   (setv reader (Reader source file) nodes [])
   (reader.ws)
   (while (reader.peek)
@@ -123,9 +139,12 @@
     (reader.ws))
   nodes)
 
-(defn parse-file [path] (parse (.read-text (Path path) :encoding "utf-8") (str path)))
+(defn parse-file [path]
+  "Read a UTF-8 content file and parse its root elements with path-based diagnostics."
+  (parse (.read-text (Path path) :encoding "utf-8") (str path)))
 
 (defn parse-data [source [file "<data>"]]
+  "Read exactly one data value and reject any trailing non-whitespace input."
   (setv reader (Reader source file) value (reader.value))
   (reader.ws)
   (when (reader.peek) (reader.error "Neočekávaný text za konfigurací"))

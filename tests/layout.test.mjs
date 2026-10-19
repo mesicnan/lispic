@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {layout} from '../lispic/static/layout.js';
+/** Assert that geometry covers each input once without cropping or overlaps. */
 function verify(items,width,options={}) {
  const r=layout(items,width,options);
  assert.equal(r.boxes.length,items.length);
