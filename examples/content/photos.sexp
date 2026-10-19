@@ -1,0 +1,7 @@
+(photo {:id "pole-01" :src "pole-01.jpg" :alt "Test: krajina v okrových barvách" :caption "Pole po sklizni" :gallery true :added "2026-10-18T18:00:00+02:00" :taken "2026-10-12"})
+(photo {:id "vez-01" :src "vez-01.jpg" :alt "Test: vysoké panorama, modré vrstvy" :caption "Mezi stromy" :gallery true :added "2026-10-18T17:00:00+02:00"})
+(photo {:id "pole-02" :src "pole-02.jpg" :alt "Test: vodorovná krajina" :caption "Řeka" :gallery true :added "2026-10-18T16:00:00+02:00"})
+(photo {:id "pole-03" :src "pole-03.jpg" :alt "Test: krajina v zelených barvách" :caption "Okraj lesa" :gallery true :added "2026-10-18T15:00:00+02:00"})
+(photo {:id "pole-04" :src "pole-04.jpg" :alt "Test: čtvercový snímek" :caption "Tiché místo" :gallery true :added "2026-10-18T14:00:00+02:00"})
+(photo {:id "panorama-01" :src "panorama-01.jpg" :alt "Test: široké panorama" :caption "Obzor" :gallery true :added "2026-09-28T10:00:00+02:00"})
+(photo {:id "sesit" :src "sesit.jpg" :alt "Test: poznámky pouze pro blog" :caption "Pracovní poznámky" :gallery false})

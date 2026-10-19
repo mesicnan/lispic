@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Lispic generated previews and development artifacts
+.preview/
+work/
+node_modules/
+test-results/
+playwright-report/
