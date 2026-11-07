@@ -1,6 +1,6 @@
 # `site.sexp` configuration
 
-The file contains one data dictionary, without comments or executable code. Unknown settings are errors. Omitted settings inherit built-in defaults. A complete working file is provided in `examples/site.sexp`.
+The file contains one data dictionary, without comments or executable code. Unknown settings are errors. Omitted settings inherit built-in defaults. The working four-repository configuration is `../content/site.sexp`. All paths are relative to that file. The table lists built-in defaults, which can differ from this workspace configuration.
 
 | Setting | Default / meaning |
 |---|---|
@@ -55,3 +55,18 @@ The file contains one data dictionary, without comments or executable code. Unkn
 Per-document overrides use `(post {... :randomization false} ...)` and `(album {... :reorder true} ...)`. Source IDs, slugs, dates, captions, and album membership belong exclusively in content files.
 
 Changing domains changes absolute URLs but preserves feed identifiers as long as `blog.identity` remains unchanged. The two websites require distinct origins. Local previews always use two different ports.
+
+## Four-repository workspace
+
+With `lispic/`, `content/`, `blog/`, and `gallery/` beside each other, the source repository's `site.sexp` uses:
+
+```lisp
+{:blog {:output "../blog"}
+ :gallery {:output "../gallery"}
+ :sources {:posts "posts" :pages "pages" :albums "albums"
+           :catalog "photos.sexp" :originals "originals" :cache ".cache/lispic"}}
+```
+
+The full file also contains titles, URLs, author details, labels, and appearance settings. Keep the cache and preview out of the content repository using its two ignore entries, `.cache/` and `.preview/`. Production output lives in separate repositories and needs no content-repository ignore patterns.
+
+Builds preserve `.git` directories and worktree `.git` files in output destinations, together with optional `.gitignore` and `.gitattributes` files. Repository history, remotes, and index data survive repeated builds. Lispic does not initialize repositories during ordinary builds and never commits or pushes automatically.

@@ -1,5 +1,5 @@
 // Exercise responsive layout, cross-origin previews, PhotoSwipe, and no-JS links.
-// Run against `lispic serve --config examples/site.sexp`.
+// Run against `lispic serve --config ../content/site.sexp`.
 import assert from 'node:assert/strict';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const browser=await chromium.launch({headless:true});

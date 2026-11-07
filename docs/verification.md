@@ -17,5 +17,17 @@ Verified on October 19, 2026, using openSUSE Tumbleweed, Python 3.13.16, Hy 1.3.
 - Excerpts use a limited list of Czech abbreviations and simple sentence boundaries. A manual `summary` takes precedence.
 - Originals are not copied, RAW files are not developed, and old image cache entries are not pruned automatically.
 - Slug changes do not create automatic redirects. Stable IDs persist, but hosting must provide any redirects for old URLs.
-- Both outputs are prepared before old directories are replaced, but replacement is not a shared transaction during disk failure. Concurrent builds of the same website are unsupported.
+- Both outputs are staged before publication, but replacing generated files is not a shared transaction during disk failure. Concurrent builds of the same website are unsupported.
 - Automated browser checks cover Chromium; Firefox and Safari were not run separately.
+
+## Four-repository migration (November 7, 2026)
+
+The workspace was split into sibling `lispic/`, `content/`, `blog/`, and `gallery/` repositories. The existing code history and origin remote were retained in `lispic/.git`. The other three repositories were initialized independently without remotes or initial commits.
+
+- All **26 core tests passed**, including a regression that initializes output repositories, builds twice, checks their existing commit IDs, preserves Git configuration files, and verifies obsolete-page removal.
+- The geometry test suite passed from the relocated code directory.
+- The relocated CLI completed `check` and two consecutive production builds against `../content/site.sexp`.
+- Checksums verified that source texts and original images survived the move unchanged; site paths and the image-generation utility were intentionally updated.
+- Git root checks confirmed four independent repositories, and `git fsck` validated the relocated code history.
+- A local preview started on two temporary loopback ports. Blog/gallery navigation, a post, and both feeds responded successfully using local URLs. Preview generation left the production output files unchanged.
+- Regression fixtures are now text-only in the code repository; their images are generated in temporary test directories, independently of the author's content repository.

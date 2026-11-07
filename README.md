@@ -6,26 +6,42 @@ A personal generator for two static photography websites. The core is written in
 
 Requires Python 3.11 or later with `venv` and system time zone data. Verified with Python 3.13.16, Hy 1.3.1, and Pillow 12.3.0.
 
+The workspace contains four sibling directories, each with its own Git repository:
+
+```text
+workspace/
+  lispic/    # This repository: generator code, documentation, tests, and tools
+  content/   # Website source: site.sexp, posts, pages, albums, and originals
+  blog/      # Generated blog output
+  gallery/   # Generated gallery output
+```
+
+The existing code history and remote belong to `lispic/.git`. The other three repositories are independent and use their own remotes. Source photos are stored in `content/`, outside the code repository. Only small text-only regression fixtures remain under `tests/fixtures/`; tests generate disposable images themselves.
+
+Run the following from the code repository (`workspace/lispic`), with the content checkout beside it:
+
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -e .
-.venv/bin/lispic check --config examples/site.sexp
-.venv/bin/lispic build --config examples/site.sexp
-.venv/bin/lispic serve --config examples/site.sexp
+.venv/bin/lispic check --config ../content/site.sexp
+.venv/bin/lispic build --config ../content/site.sexp
+.venv/bin/lispic serve --config ../content/site.sexp
 ```
 
 Open **http://localhost:8000** for the blog and **http://localhost:8001** for the gallery. Environment activation is optional. Installing with `pipx install .` makes `lispic` available from any directory; use `--config` to select your `site.sexp`. A separately installed `hy` may lack the project's dependencies, so use `.venv/bin/hy` for development.
 
 - `check` reads all content, including drafts, and validates syntax, metadata, references, and image files. It does not generate a cache or website.
-- `build` generates both websites: `examples/dist/blog` and `examples/dist/gallery` in the example.
-- `serve` builds separate local output in `examples/.preview/{blog,gallery}`, replaces both base URLs with localhost addresses, and starts two loopback servers. Production `dist` output is preserved. Stop with Ctrl+C and restart after editing content.
+- `build` generates both websites: `../blog` and `../gallery` with the provided content configuration.
+- `serve` builds separate local output in `../content/.preview/{blog,gallery}`, replaces both base URLs with localhost addresses, and starts two loopback servers. The production blog and gallery checkouts are preserved. Stop with Ctrl+C and restart after editing content.
 - Change ports with `--port 8100 --gallery-port 8101`.
 
 `serve` also rewrites explicit content and navigation links that start with a configured production origin. Other external links remain external. Preview the site over HTTP rather than opening files through `file://`.
 
 ## Content
 
-All configuration paths are relative to the configuration file. The example contains two published posts, one draft, an About page, seven catalog photos, two albums, and a separate post-only image. The images are labelled technical illustrations with different aspect ratios. They are included in the checkout; regenerate them with `.venv/bin/hy examples/make_images.hy`.
+All configuration paths are relative to `content/site.sexp`. The content repository contains `posts/`, `pages/`, `albums/`, `photos.sexp`, and `originals/`. The configuration writes the blog to `../blog` and the gallery to `../gallery`. Image cache and local preview files stay under the ignored `content/.cache/` and `content/.preview/` directories.
+
+The initial content contains two published posts, one draft, an About page, seven catalog photos, two albums, and a separate post-only image. Its images are labelled technical illustrations with different aspect ratios. The code repository's `tools/make_images.hy` can regenerate those demo images when explicitly given a site directory; it overwrites the named demo files, so use it only for demonstration content. Tests use that tool in a temporary directory and do not read or modify the author's content checkout.
 
 The generated website and example content use Czech. Documentation and source comments use English.
 
@@ -114,11 +130,13 @@ Each entry's UUIDv5 derives from `blog.identity` and the post ID. Changing the t
 
 ## Configuration and publishing
 
-The complete example is `examples/site.sexp`. [docs/configuration.md](docs/configuration.md) describes every setting and default. Allowed per-document overrides are `post.randomization` and `album.reorder`; other values come from site configuration and built-in defaults. Document metadata belongs in content files.
+The complete working configuration is `../content/site.sexp`. A text-only regression configuration is also kept in `tests/fixtures/site/site.sexp`; it uses temporary `dist/` outputs for isolated tests. [docs/configuration.md](docs/configuration.md) describes every setting and default. Allowed per-document overrides are `post.randomization` and `album.reorder`; other values come from site configuration and built-in defaults. Document metadata belongs in content files.
 
-For your own website, copy the example structure and change the URLs, author, titles, content, and stable blog identity. After `build`, upload the **contents** of `dist/blog` to the blog origin's root and the **contents** of `dist/gallery` to the gallery origin's root. Hosting must serve directories through `index.html` and provide correct MIME types for JavaScript, CSS, images, and XML. Python and a database are not required on the host. The tool does not perform deployment.
+For your own website, edit the content repository's URLs, author, titles, content, and stable blog identity. After `build`, commit generated changes separately in `../blog` and `../gallery`, or upload their **contents** to the corresponding origin roots. The code, source content, blog output, and gallery output can each use a different remote; configure and push them independently. Lispic does not run Git commits or pushes. Hosting must serve directories through `index.html` and provide correct MIME types for JavaScript, CSS, images, and XML. Python and a database are not required on the host. The tool does not perform deployment.
 
-The build prepares both trees in temporary sibling directories before replacing old output. This removes orphaned pages and variants. Only empty directories or directories marked with `.lispic-output` may be replaced; output directories must not overlap sources, the cache, or each other. Replacing two directories is not a shared transaction during disk failure. Do not run concurrent builds for the same website.
+The build prepares both websites in temporary sibling directories before publishing generated files. Publication removes obsolete pages and variants but preserves each destination's `.git`, `.gitignore`, and `.gitattributes`. A fresh repository containing only those Git files is accepted on its first build. Other existing content requires the `.lispic-output` ownership marker. Output paths must not overlap sources, the cache, or each other. Publication is not transactional during disk failure; do not run concurrent builds for the same website.
+
+To inspect changes, run `git -C ../content status`, `git -C ../blog status`, and `git -C ../gallery status` from the code repository. Each output repository tracks only its own generated website, so website content needs no ignore rules in the code repository.
 
 Recorded verification results: [docs/verification.md](docs/verification.md).
 

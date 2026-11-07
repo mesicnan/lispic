@@ -10,3 +10,7 @@
 - Tall photos may move to the left start of their local two-row group; retain the order of all other photos and the original lightbox order. Gallery moves must not cross added-day boundaries.
 - Theme: dark, Czech, narrow article text, wide uncropped gallery.
 - Run `.venv/bin/python -m pytest -q` for core changes and `node --test tests/layout.test.mjs` for geometry changes. Browser checks: `node tests/browser.mjs` with the example preview running.
+
+- Workspace repositories are siblings: `lispic/` (code), `content/` (source), `blog/` and `gallery/` (generated output). Run code commands from this repository and use `--config ../content/site.sexp` for the author's site.
+- Never delete or replace `.git`, `.gitignore`, or `.gitattributes` in output repositories. Regeneration must preserve their history while removing stale generated files.
+- Tests use text-only fixtures under `tests/fixtures/site` and generate temporary images; do not depend on or modify the author's content checkout.

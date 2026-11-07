@@ -1,5 +1,7 @@
 import copy
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 from html.parser import HTMLParser
 from urllib.parse import urlsplit
@@ -18,12 +20,21 @@ from lispic.images import process_image
 from lispic.build import build
 from lispic.feeds import stable_id
 
+@pytest.fixture(scope="session")
+def example_template(tmp_path_factory):
+    """Generate disposable images for the code repository's text-only test fixtures."""
+    root = tmp_path_factory.mktemp("example") / "site"
+    project = Path(__file__).parents[1]
+    shutil.copytree(project / "tests/fixtures/site", root)
+    subprocess.run([sys.executable, "-m", "hy", str(project / "tools/make_images.hy"), str(root)], check=True)
+    return root
+
+
 @pytest.fixture
-def site(tmp_path):
-    "Copy the example into a temporary directory so builds cannot modify repository fixtures."
-    shutil.copytree(Path(__file__).parents[1]/'examples', tmp_path/'site',
-        ignore=shutil.ignore_patterns('dist','.cache','.preview','__pycache__'))
-    return load_config(tmp_path/'site/site.sexp')
+def site(tmp_path, example_template):
+    """Give each test an isolated site without reading the author's content repository."""
+    shutil.copytree(example_template, tmp_path / "site")
+    return load_config(tmp_path / "site/site.sexp")
 
 def render(s):
     "Render one parsed element without catalog or post dependencies."
@@ -243,3 +254,31 @@ def test_ignored_photo_attributes_are_rejected(site):
     p=site['root']/'content/posts/2026-10-18-podzim.sexp'
     p.write_text(p.read_text().replace(':ref "pole-01"', ':ref "pole-01" :gallery false'))
     with pytest.raises(ContentError,match='Nepovolený atribut'):load_content(site)
+
+
+def test_output_repositories_survive_builds(site):
+    """Keep output repository history and settings across first and repeat builds."""
+    outputs = [site['root'] / 'dist' / name for name in ('blog', 'gallery')]
+    for output in outputs:
+        output.mkdir(parents=True)
+        subprocess.run(['git', 'init', '--initial-branch=main', str(output)], check=True, capture_output=True)
+        (output / '.gitignore').write_text('local-notes.txt\n')
+        (output / '.gitattributes').write_text('*.html text\n')
+    build(site)
+    heads = {}
+    for output in outputs:
+        subprocess.run(['git', '-C', str(output), 'add', '.'], check=True)
+        subprocess.run(['git', '-C', str(output), '-c', 'user.name=Lispic tests', '-c',
+                        'user.email=lispic@example.invalid', 'commit', '-m', 'First output'],
+                       check=True, capture_output=True)
+        heads[output] = subprocess.check_output(['git', '-C', str(output), 'rev-parse', 'HEAD'])
+        (output / 'obsolete.html').write_text('stale generated page')
+    (site['root'] / 'content/pages/o-mne.sexp').unlink()
+    build(site)
+    for output in outputs:
+        assert subprocess.check_output(['git', '-C', str(output), 'rev-parse', 'HEAD']) == heads[output]
+        assert not (output / 'obsolete.html').exists()
+        assert (output / '.gitignore').read_text() == 'local-notes.txt\n'
+        assert (output / '.gitattributes').read_text() == '*.html text\n'
+        subprocess.run(['git', '-C', str(output), 'fsck', '--no-dangling'], check=True, capture_output=True)
+    assert not (outputs[0] / 'stranky/o-mne').exists()

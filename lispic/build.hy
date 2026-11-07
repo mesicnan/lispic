@@ -7,6 +7,21 @@
 (import lispic.render [document body listing labels grid photo-anchor esc photo-url])
 (import lispic.feeds [write-feeds])
 
+;; These files belong to the destination repository, not generated web content.
+(setv REPOSITORY-FILES #{".git" ".gitignore" ".gitattributes"})
+
+(defn publish-output [stage output]
+  "Replace generated children while preserving repository metadata and configuration."
+  (.mkdir output :parents True :exist-ok True)
+  ;; Keep the output directory itself and .git in place. This also preserves
+  ;; worktree .git files whose relative paths depend on the checkout location.
+  (for [path (.iterdir output)]
+    (when (not (in path.name REPOSITORY-FILES))
+      (if (and (.is-dir path) (not (.is-symlink path)))
+        (shutil.rmtree path)
+        (.unlink path))))
+  (for [path (.iterdir stage)] (.replace path (/ output path.name))))
+
 (defn write-page [output route title content site cfg data]
   "Write a complete UTF-8 document at the directory-index path for route."
   (setv path (/ output (.lstrip route "/") "index.html"))
@@ -40,9 +55,10 @@
       (when (.is-relative-to output (.resolve (/ root value))) (raise (ContentError "Výstup nesmí ležet ve zdrojích nebo cache")))))
   (setv a (get outputs "blog") b (get outputs "gallery"))
   (when (or (.is-relative-to a b) (.is-relative-to b a)) (raise (ContentError "Výstupy webů se nesmí překrývat")))
-  ;; Only directories created by Lispic may be replaced.
+  ;; A fresh repository can contain its Git files before the first build.
+  ;; Other content requires the ownership marker written by a previous build.
   (for [output (.values outputs)]
-    (when (and (.exists output) (any (.iterdir output)) (not (.is-file (/ output ".lispic-output"))))
+    (when (and (.exists output) (any (gfor path (.iterdir output) (not (in path.name REPOSITORY-FILES)))) (not (.is-file (/ output ".lispic-output"))))
       (raise (ContentError f"Výstup {output} obsahuje cizí soubory; zvol prázdný adresář"))))
   outputs)
 
@@ -131,12 +147,11 @@
       (write-page gallery route (get a "title") (+ "<h1>" (esc (get a "title")) "</h1><div class=\"prose\">" (body r data cfg) "</div>" (grid (get a "photos") data cfg (.get a "reorder" False))) "gallery" cfg data))
     (write-page gallery "/alba/" "Alba" (+ album-list "</ul>") "gallery" cfg data)
     (write-feeds data cfg blog)
-    ;; Replace outputs only after both trees have been rendered successfully.
-    ;; Replacing entire trees removes pages and variants that are no longer used.
-    ;; The two filesystem replacements are not a shared transaction.
+    ;; Publish only after both sites render successfully. Remove stale generated
+    ;; content but preserve destination Git metadata and repository settings.
+    ;; Publication is not transactional in the event of a filesystem failure.
     (for [[site output] (.items outputs)]
-      (when (.exists output) (shutil.rmtree output))
-      (.replace (get stages site) output))
+      (publish-output (get stages site) output))
     (finally
       (for [stage (.values stages)] (when (.exists stage) (shutil.rmtree stage)))))
   data)
