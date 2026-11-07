@@ -1,4 +1,13 @@
 "Coordinate validation, image publication, page generation, and replacement of both outputs."
+(import pathlib [Path] sys)
+
+;; This module and the checkout launcher share a filename. If selected directly,
+;; delegate before importing Pillow or other environment-specific dependencies.
+(when (= __name__ "__main__")
+  (setv project (. (. (.resolve (Path __file__)) parent) parent))
+  (.insert sys.path 0 (str project))
+  (import lispic.launcher [run])
+  (sys.exit (run "build" project)))
 (import json shutil tempfile pathlib [Path] datetime [datetime] zoneinfo [ZoneInfo])
 (import lispic.config [load-config])
 (import lispic.validation [load-content walk safe-file])

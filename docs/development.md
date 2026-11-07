@@ -16,6 +16,7 @@ The implementation targets Hy 1.3.1. The Python bootstrap registers Hy's import 
 | `render.hy` | HTML escaping, origin-aware links, responsive images, content rendering, lists, and complete page shells. `body` applies per-post paragraph settings. |
 | `feeds.hy` | `stable-id` creates UUIDv5 entry IDs. `write-feeds` serializes Atom and RSS with ElementTree, using document metadata rather than the build clock. |
 | `build.hy` | `output-paths` protects sources and existing directories. `build` coordinates validation, image processing, page generation, feeds, staging, and output replacement. |
+| `launcher.hy` | Standard-library-only checkout launcher for `build.hy` and `serve.hy`. Build preflights stop on errors; both scripts select the local environment and sibling configuration. |
 | `cli.hy` | `main` parses commands and handles user-facing failures. Preview mode rewrites both origins and serves separate output trees on loopback ports. |
 | `static/layout.js` | The pure `layout` function computes geometry without reading or changing the DOM. |
 | `static/gallery.js` | Applies geometry on container resize and initializes the bundled PhotoSwipe lightboxes. |

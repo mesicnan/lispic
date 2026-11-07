@@ -282,3 +282,45 @@ def test_output_repositories_survive_builds(site):
         assert (output / '.gitattributes').read_text() == '*.html text\n'
         subprocess.run(['git', '-C', str(output), 'fsck', '--no-dangling'], check=True, capture_output=True)
     assert not (outputs[0] / 'stranky/o-mne').exists()
+
+
+def test_build_launcher_preflight_and_skip(site, tmp_path, monkeypatch, capfd):
+    """Stop before writing output on check failure, unless the preflight is explicitly skipped."""
+    from lispic.launcher import run
+
+    project = tmp_path / 'checkout'
+    project.mkdir()
+    # Use the real installed CLI with an isolated checkout/content layout.
+    (project / '.venv').symlink_to(Path(sys.prefix), target_is_directory=True)
+    original = site['root'] / 'originals' / 'unused-broken.jpg'
+    original.write_bytes(b'not an image')
+    catalog = site['root'] / 'content/photos.sexp'
+    catalog.write_text(catalog.read_text() + '\n(photo {:id "unused-broken" :src "unused-broken.jpg" :alt "Unused" :gallery false})\n')
+    arguments = ['build.hy', '--config', str(site['root'] / 'site.sexp')]
+    monkeypatch.setattr(sys, 'argv', arguments)
+    assert run('build', project) == 1
+    assert not (site['root'] / 'dist').exists()
+
+    # The unused image is not part of public output. Skipping the full image
+    # preflight permits the build, while normal source validation still runs.
+    monkeypatch.setattr(sys, 'argv', arguments + ['--skip-check'])
+    assert run('build', project) == 0
+    assert (site['root'] / 'dist/blog/index.html').is_file()
+    assert (site['root'] / 'dist/gallery/index.html').is_file()
+
+    source = site['root'] / 'content/posts/2026-10-18-podzim.sexp'
+    source.write_text(source.read_text().replace(':ref "pole-01"', ':ref "missing"'))
+    assert run('build', project) == 1
+    assert 'Neexistující fotografie' in capfd.readouterr().err
+
+
+@pytest.mark.parametrize('entry', ['build.hy', 'lispic/build.hy'])
+def test_build_entry_paths_show_launcher_help(entry, tmp_path):
+    """Both build paths reach the launcher even when executed outside the checkout."""
+    project = Path(__file__).parents[1]
+    result = subprocess.run([sys.executable, '-m', 'hy', str(project / entry), '--help'],
+                            cwd=tmp_path, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert '--skip-check' in result.stdout
+    assert '--config' in result.stdout
+    assert 'Traceback' not in result.stderr

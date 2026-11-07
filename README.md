@@ -18,24 +18,83 @@ workspace/
 
 The existing code history and remote belong to `lispic/.git`. The other three repositories are independent and use their own remotes. Source photos are stored in `content/`, outside the code repository. Only small text-only regression fixtures remain under `tests/fixtures/`; tests generate disposable images themselves.
 
-Run the following from the code repository (`workspace/lispic`), with the content checkout beside it:
+### One-time installation
+
+Run these commands once from the code repository (`workspace/lispic`):
 
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -e .
+```
+
+The short commands below require `hy` on your PATH. After setup, you do not need to activate `.venv` or repeat the installation.
+
+### Build the websites
+
+From the code repository (`workspace/lispic`, the directory containing `pyproject.toml`):
+
+```sh
+hy build.hy
+```
+
+From the workspace directory one level above it, use:
+
+```sh
+hy lispic/build.hy
+```
+
+The intended entry point is the `build.hy` beside `pyproject.toml`. The similarly named `lispic/build.hy` inside the Python package contains the build implementation; directly executing that file also delegates to the checkout launcher, so selecting it accidentally no longer causes an import error.
+
+This automatically runs `check` first and then builds the blog into `../blog` and the gallery into `../gallery`. If checking fails, the script exits without starting the build or changing existing output.
+
+To skip the separate preflight check:
+
+```sh
+hy build.hy --skip-check
+```
+
+The build still validates metadata and references. Use the default command when you also want the full preflight, including inspection of images that are not used in public output.
+
+Both scripts find `../content/site.sexp` relative to their own location and run the generator in the project's environment. The globally installed Hy needs no additional image-processing dependencies. Select another configuration with:
+
+```sh
+hy build.hy --config /path/to/site.sexp
+```
+
+### Optional local preview
+
+```sh
+hy serve.hy
+```
+
+From the workspace directory above the code checkout, use `hy lispic/serve.hy` instead.
+
+Open [the blog](http://localhost:8000/) and [the gallery](http://localhost:8001/). The script builds a separate preview in `../content/.preview/{blog,gallery}` and starts two local HTTP servers. Links between the websites, media URLs, feed links, and explicit links matching the configured production origins are rewritten to the local addresses. Other external links remain external.
+
+The production `../blog` and `../gallery` directories are preserved. Stop the preview with **Ctrl+C** and restart it after editing content.
+
+To change the ports or configuration:
+
+```sh
+hy serve.hy --port 8100 --gallery-port 8101
+hy serve.hy --config /path/to/site.sexp
+```
+
+**`serve.hy` is optional.** `hy build.hy` generates static files and exits; no server is needed for generation. Previewing over HTTP makes root-relative links and JavaScript modules work as they do on a static host. Opening the HTML directly through `file://` does not provide the same behavior. Hosting the finished output requires only a static HTTP server.
+
+### Full CLI
+
+The underlying commands remain available for explicit control:
+
+```sh
 .venv/bin/lispic check --config ../content/site.sexp
 .venv/bin/lispic build --config ../content/site.sexp
 .venv/bin/lispic serve --config ../content/site.sexp
 ```
 
-Open **http://localhost:8000** for the blog and **http://localhost:8001** for the gallery. Environment activation is optional. Installing with `pipx install .` makes `lispic` available from any directory; use `--config` to select your `site.sexp`. A separately installed `hy` may lack the project's dependencies, so use `.venv/bin/hy` for development.
+`check` validates all content, including drafts, without generating output or an image cache. The direct CLI `build` performs normal build validation but does not run the separate preflight; `hy build.hy` adds that step automatically.
 
-- `check` reads all content, including drafts, and validates syntax, metadata, references, and image files. It does not generate a cache or website.
-- `build` generates both websites: `../blog` and `../gallery` with the provided content configuration.
-- `serve` builds separate local output in `../content/.preview/{blog,gallery}`, replaces both base URLs with localhost addresses, and starts two loopback servers. The production blog and gallery checkouts are preserved. Stop with Ctrl+C and restart after editing content.
-- Change ports with `--port 8100 --gallery-port 8101`.
-
-`serve` also rewrites explicit content and navigation links that start with a configured production origin. Other external links remain external. Preview the site over HTTP rather than opening files through `file://`.
+Installing with `pipx install .` makes the full `lispic` command available from any directory. For development utilities that import project dependencies directly, use `.venv/bin/hy`.
 
 ## Content
 
@@ -150,13 +209,13 @@ node --test tests/layout.test.mjs
 # Optional real-browser checks:
 npm install
 npx playwright install chromium
-# Keep the quick-start preview running in another terminal:
+# Keep `hy serve.hy` running in another terminal:
 node tests/browser.mjs
 ```
 
 The tests cover parsing, Czech text and punctuation, unsafe links, metadata, ordering, drafts, orientation and ICC conversion, GPS removal, caching, paragraph variations, excerpts, feed identity and XML, local link targets, reproducibility, and obsolete page removal. Geometry tests check overlaps, aspect ratios, full rows, panoramas, and added-day boundaries. Browser tests cover a 1440 px desktop, a 390 px mobile viewport, the lightbox, cross-site navigation, feeds, and basic navigation without JavaScript.
 
-The core modules are `parser.hy`, `model.hy`, `config.hy`, `validation.hy`, `images.hy`, `typography.hy`, `excerpts.hy`, `render.hy`, `feeds.hy`, `build.hy`, and `cli.hy`. `__init__.py` is the only Python bootstrap; tests use Python and JavaScript. See [docs/development.md](docs/development.md) for the module boundaries and implementation notes.
+The core modules are `parser.hy`, `model.hy`, `config.hy`, `validation.hy`, `images.hy`, `typography.hy`, `excerpts.hy`, `render.hy`, `feeds.hy`, `build.hy`, `cli.hy`, and `launcher.hy`. `__init__.py` is the only Python bootstrap; tests use Python and JavaScript. See [docs/development.md](docs/development.md) for the module boundaries and implementation notes.
 
 PhotoSwipe **5.4.4** is bundled locally under the **MIT** license. See `lispic/static/PHOTOSWIPE-LICENSE.txt` and [docs/third-party.md](docs/third-party.md). The generated websites use no runtime CDN or external fonts.
 
